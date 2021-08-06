@@ -18,16 +18,16 @@ namespace ProxyValidator
         public Form1()
         {
             InitializeComponent();
+            CheckForIllegalCrossThreadCalls = false;
         }
-        string[] proxy;
-        int a;
+        string[] proxys;
         private void button1_Click(object sender, EventArgs e)
         {
-            Thread thread1 = new Thread(new ThreadStart(Thread1));
+            Thread thread1 = new Thread(new ThreadStart(TestProxy));
             thread1.Start();
         }
 
-        private void Thread1()
+        private void TestProxy()
         {
             button1.Enabled = false;
             button2.Enabled = false;
@@ -35,55 +35,61 @@ namespace ProxyValidator
             textBox1.Enabled = false;
             richTextBox1.Clear();
             label1.Text = "正在验证代理......";
-            for (int i=0;i<proxy.Length;i++)
+            List<Task> TaskList = new List<Task>();
+            for (int i=0;i<proxys.Length;i++)
             {
-                a = i;
-                Thread thread2 = new Thread(new ThreadStart(Thread2));
-                thread2.Start();
-                System.Threading.Thread.Sleep(100);
+                int l = i;
+                TaskList.Add(Task.Factory.StartNew(() =>
+                {
+                    bool result = TestProxy(proxys[l]);
+                    if(result)
+                    {
+                        BeginInvoke(new Action(() =>
+                        {
+                            richTextBox1.Text += proxys[l] + " 可用\r";
+                            proxys[l] = "";
+                        }));
+                    }
+                    else
+                    {
+                        BeginInvoke(new Action(() =>
+                        {
+                            richTextBox1.Text += proxys[l] + " 不可用\r";
+                            proxys[l] = "";
+                        }));
+                    }
+                }));
             }
-            if(richTextBox1.Text=="")
-            {
-                label1.Text = "验证完毕！无可用代理！";
-                MessageBox.Show("验证完毕！无可用代理！", "提示");
-                button1.Enabled = true;
-                button2.Enabled = true;
-                button4.Enabled = true;
-                textBox1.Enabled = true;
-            }
-            else
-            {
-                label1.Text = "验证完毕！";
-                MessageBox.Show("验证完毕！", "提示");
-                button1.Enabled = true;
-                button2.Enabled = true;
-                button4.Enabled = true;
-                textBox1.Enabled = true;
-            }
+            Task.WaitAll(TaskList.ToArray());
+            MessageBox.Show("验证完毕！", "提示");
+            button2.Enabled = true;
+            button4.Enabled = true;
+            textBox1.Enabled = true;
         }
-        private void Thread2()
+        private bool TestProxy(string proxy)
         {
             try
             {
-                WebProxy proxyObject = new WebProxy(proxy[a]);
+                WebProxy proxyObject = new WebProxy(proxy);
                 HttpWebRequest Req = (HttpWebRequest)WebRequest.Create(textBox1.Text);
-                Req.UserAgent = "Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.1; Trident/4.0; QQWubi 133; SLCC2; .NET CLR 2.0.50727; .NET CLR 3.5.30729; .NET CLR 3.0.30729; Media Center PC 6.0; CIBA; InfoPath.2)";//UA
+                Req.UserAgent = "Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.1; Trident/4.0; QQWubi 133; SLCC2; .NET CLR 2.0.50727; .NET CLR 3.5.30729; .NET CLR 3.0.30729; Media Center PC 6.0; CIBA; InfoPath.2)";
                 Req.Proxy = proxyObject;
                 Req.Method = "GET";
                 Req.Timeout = 1000;
                 HttpWebResponse Resp = (HttpWebResponse)Req.GetResponse();
-                richTextBox1.Text += proxy[a] + " 可用\n";
+                return true;
             }
             catch
             {
+                return false;
             }
         }
 
         private void button2_Click(object sender, EventArgs e)
         {
-            Thread thread4 = new System.Threading.Thread(new System.Threading.ThreadStart(Thread4));
-            thread4.ApartmentState = ApartmentState.STA;
-            thread4.Start();
+            Thread thread3 = new Thread(new ThreadStart(IncludeProxy));
+            thread3.ApartmentState = ApartmentState.STA;
+            thread3.Start();
         }
 
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
@@ -93,10 +99,10 @@ namespace ProxyValidator
 
         private void button3_Click(object sender, EventArgs e)
         {
-            Thread thread3 = new Thread(new ThreadStart(Thread3));
-            thread3.Start();
+            Thread thread2 = new Thread(new ThreadStart(TestURL));
+            thread2.Start();
         }
-        private void Thread3()
+        private void TestURL()
         {
             button2.Enabled = false;
             button4.Enabled = false;
@@ -122,18 +128,18 @@ namespace ProxyValidator
                 textBox1.Enabled = true;
             }
         }
-        private void Thread4()
+        private void IncludeProxy()
         {
             label1.Text = "正在导入代理......";
-            openFileDialog1.Filter = "txt文件|*.txt";
+            openFileDialog1.Filter = "文本文档|*.txt";
             if (openFileDialog1.ShowDialog() == DialogResult.OK)
             {
-                proxy = File.ReadAllLines(openFileDialog1.FileName);
+                proxys = File.ReadAllLines(openFileDialog1.FileName);
                 int i = 0;
                 richTextBox1.Clear();
-                while (i<proxy.Length)
+                while (i<proxys.Length)
                 {
-                    richTextBox1.Text += proxy[i] + "\r";
+                    richTextBox1.Text += proxys[i] + "\r";
                     i++;
                 }
                 button1.Enabled = true;
@@ -141,27 +147,24 @@ namespace ProxyValidator
             }
             else
             {
-                label1.Text = "代理已导入！";
+                label1.Text = "代理导入已取消！";
             }
         }
 
         private void button4_Click(object sender, EventArgs e)
         {
-            Thread thread5 = new System.Threading.Thread(new System.Threading.ThreadStart(Thread5));
-            thread5.ApartmentState = ApartmentState.STA;
-            thread5.Start();
+            Thread thread4 = new Thread(new ThreadStart(SaveResult));
+            thread4.ApartmentState = ApartmentState.STA;
+            thread4.Start();
         }
-        private void Thread5()
+        private void SaveResult()
         {
-            SaveFileDialog saveFileDialog = new SaveFileDialog();
-            saveFileDialog.Filter = "(*.txt)|*.txt|(*.*)|*.*";
-            saveFileDialog.FileName = "result.txt";
-            bool flag = saveFileDialog.ShowDialog() == DialogResult.OK;
-            if (flag)
+            SaveFileDialog a = new SaveFileDialog();
+            a.Filter = "文本文档|*.txt";
+            if(a.ShowDialog()==DialogResult.OK)
             {
-                StreamWriter streamWriter = new StreamWriter(saveFileDialog.FileName, true);
-                streamWriter.Write(this.richTextBox1.Text);
-                streamWriter.Close();
+                string b = a.FileName;
+                File.WriteAllLines(b, proxys);
             }
         }
     }
